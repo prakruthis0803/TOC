@@ -1,0 +1,24 @@
+// Define tokens with possible surrounding whitespace
+PLUS: "+"
+STAR: "*"
+WS: /[ \t\f\r\n]/+
+
+start: expr
+
+expr: expr PLUS term  -> add
+    | term
+
+term: term STAR factor -> mul
+    | factor
+
+factor: LPAR expr RPAR
+      | NUMBER
+      | NAME
+
+LPAR: "("
+RPAR: ")"
+
+%import common.NUMBER
+%import common.CNAME -> NAME
+%import common.WS_INLINE
+%ignore WS_INLINE
