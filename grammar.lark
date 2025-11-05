@@ -1,24 +1,27 @@
-// Define tokens with possible surrounding whitespace
-PLUS: "+"
-STAR: "*"
-WS: /[ \t\f\r\n]/+
-
+// Basic arithmetic expression grammar
 start: expr
 
-expr: expr PLUS term  -> add
-    | term
+// Expression level - addition
+expr: term                      -> single
+    | expr "+" term            -> add
 
-term: term STAR factor -> mul
-    | factor
+// Term level - multiplication
+term: factor                    -> single_factor
+    | term "*" factor          -> mul
 
-factor: LPAR expr RPAR
-      | NUMBER
-      | NAME
+// Factor level - parentheses and values
+factor: NUMBER                  -> number
+      | NAME                   -> var
+      | "(" expr ")"          -> paren
 
-LPAR: "("
-RPAR: ")"
-
+// Import common tokens
 %import common.NUMBER
 %import common.CNAME -> NAME
+%import common.WS
+%ignore WS
+
+// Import common tokens
+%import common.NUMBER           // 12.34
+%import common.CNAME -> NAME    // variable names
 %import common.WS_INLINE
-%ignore WS_INLINE
+%ignore WS_INLINE              // Ignore whitespace between tokens

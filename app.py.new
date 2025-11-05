@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 import streamlit as st
 import time
 from parser_engine import parse_code, tree_to_graphviz, get_lmd_steps, get_rmd_steps
@@ -34,29 +31,21 @@ def main():
             placeholder="Example:\na=1\nb=2\nc=3",
             height=100
         )
-    
+
     # Process variable assignments
     if vars_input:
-        # Clear previous variables
-        evaluator.clear()
-        # Split by newlines and process each variable assignment
-        valid_assignments = []
-        
-        for line in vars_input.strip().split('\n'):
-            line = line.strip()
-            if line and '=' in line:
-                try:
-                    name, value = [part.strip() for part in line.split('=', 1)]
-                    if name.isalpha():  # Ensure variable name contains only letters
-                        evaluator.set_variable(name, float(value))
-                        valid_assignments.append(f"{name} = {value}")
-                    else:
-                        st.warning(f"Variable name must contain only letters: {name}")
-                except ValueError:
-                    st.warning(f"Invalid value in assignment: {line}")
-        
-        if valid_assignments:
-            st.success("Variables set: " + ", ".join(valid_assignments))
+        try:
+            # Clear previous variables
+            evaluator = ExpressionEvaluator()
+            # Split by newlines and process each variable assignment
+            for line in vars_input.strip().split('\n'):
+                if '=' in line:
+                    name, value = line.strip().split('=')
+                    name = name.strip()
+                    value = float(value.strip())
+                    evaluator.set_variable(name, value)
+        except ValueError as e:
+            st.error(f"Invalid variable format. Use one assignment per line like:\na=1\nb=2\nc=3\nError: {str(e)}")
 
     # Clean up the expression input
     if code_input:
@@ -118,28 +107,10 @@ def main():
                 st.markdown("---")
                 st.subheader("Expression Evaluation")
                 try:
-                    # First validate that all required variables are present
-                    undefined_vars = evaluator.validate_tree(result['lmd'])
-                    if undefined_vars:
-                        st.error(f"Undefined variables: {', '.join(undefined_vars)}")
-                        st.info("Please define all variables used in the expression.")
-                    else:
-                        # Show the values being used
-                        st.info("Using variables:")
-                        for var, val in evaluator.variables.items():
-                            st.code(f"{var} = {val}")
-                        
-                        value = evaluator.evaluate(result['lmd'])
-                        st.success(f"Result: {value:.2f}")  # Format to 2 decimal places
-                        
-                        # Show the evaluation steps
-                        st.markdown("**Evaluation steps:**")
-                        st.code(f"1. Inside parentheses (c + 2): {3 + 2}")
-                        st.code(f"2. Multiplication b * (c + 2): {2 * (3 + 2)}")
-                        st.code(f"3. Final addition a + b * (c + 2): {1 + 2 * (3 + 2)}")
-                except Exception as e:
-                    st.error(f"Evaluation error: {str(e)}")
-                    st.info("Make sure all variables are defined and the expression is valid.")
+                    value = evaluator.evaluate(result['lmd'])
+                    st.success(f"Result: {value}")
+                except ValueError as e:
+                    st.warning(f"Evaluation error: {str(e)}")
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,179 @@
+import streamlit as st
+import time
+from parser_engine import parse_code, tree_to_graphviz, get_lmd_steps, get_rmd_steps
+from code_generator import CodeGenerator
+from evaluator import ExpressionEvaluator
+from metrics import ParserMetrics
+
+import streamlit as st
+import time
+from parser_engine import parse_code, tree_to_graphviz, get_lmd_steps, get_rmd_steps
+from code_generator import CodeGenerator
+from evaluator import ExpressionEvaluator
+from metrics import ParserMetrics
+
+st.title("Interactive Parser for Programming Languages")
+
+# Initialize components
+evaluator = ExpressionEvaluator()
+metrics_analyzer = ParserMetrics()
+
+# Initialize components
+evaluator = ExpressionEvaluator()
+metrics_analyzer = ParserMetrics()
+
+# Add sidebar for configuration
+st.sidebar.header("Parser Configuration")
+parsing_mode = st.sidebar.selectbox(
+    "Select Parsing Mode",
+    ["Both (LMD & RMD)", "LMD Only", "RMD Only"]
+)
+
+visualization_type = st.sidebar.selectbox(
+    "Tree Visualization Style",
+    ["Horizontal", "Vertical", "Radial"]
+)
+
+show_steps = st.sidebar.checkbox("Show Derivation Steps", value=True)
+show_animation = st.sidebar.checkbox("Animate Parse Tree Construction", value=False)
+
+# Example snippets
+st.sidebar.markdown("---")
+st.sidebar.header("Example Expressions")
+examples = {
+    "Basic Arithmetic": "a + b * (c + 2)",
+    "Complex Expression": "x * (y + z) / (p - q)",
+    "Nested Parentheses": "(a + (b * (c + d)))"
+}
+if st.sidebar.selectbox("Load Example", ["Custom"] + list(examples.keys())) != "Custom":
+    code_input = st.text_area("Enter code snippet to parse:", 
+                             value=examples[st.sidebar.selectbox("Load Example", ["Custom"] + list(examples.keys()))],
+                             height=150)
+else:
+    # Create two columns for input
+col1, col2 = st.columns(2)
+
+with col1:
+    code_input = st.text_area("Enter expression to parse:", 
+                             placeholder="Example: a + b * (c + 2)",
+                             height=100)
+
+with col2:
+    vars_input = st.text_area("Enter variable values:",
+                             placeholder="Example:\na=1\nb=2\nc=3",
+                             height=100)
+
+# Process variable assignments
+if vars_input:
+    try:
+        # Split by newlines and process each variable assignment
+        for line in vars_input.strip().split('\n'):
+            if '=' in line:
+                name, value = line.strip().split('=')
+                name = name.strip()
+                value = float(value.strip())
+                evaluator.set_variable(name, value)
+    except Exception as e:
+        st.error(f"Invalid variable format. Use one assignment per line like:\na=1\nb=2\nc=3\nError: {str(e)}")
+
+# Clean up the expression input
+if code_input:
+    code_input = code_input.strip()  # Remove leading/trailing whitespace
+
+# Code generation options
+st.sidebar.markdown("---")
+st.sidebar.header("Code Generation")
+target_lang = st.sidebar.selectbox(
+    "Target Language",
+    ["Python", "JavaScript", "C++"]
+)
+
+if st.button("Parse"):
+    start_time = time.time()
+    result = parse_code(code_input, mode='both')
+    parsing_time = time.time() - start_time
+    
+    if isinstance(result, str):
+        st.error(f"Parsing error: {result}")
+    else:
+        st.success("Parsing Successful! Parse trees visualized below.")
+        
+        # Display LMD Parse Tree
+        st.subheader("Left-Most Derivation (LMD) Parse Tree")
+        dot_lmd = tree_to_graphviz(result['lmd'])
+        st.graphviz_chart(dot_lmd.source)
+
+        # Show LMD steps in a nicer format
+        st.markdown("**LMD Derivation Steps:**")
+        lmd_steps = get_lmd_steps(result['lmd'])
+        for i, step in enumerate(lmd_steps):
+            st.code(f"Step {i+1}: {step}")
+        
+        st.markdown("---")  # Separator
+        
+        # Display RMD Parse Tree
+        st.subheader("Right-Most Derivation (RMD) Parse Tree")
+        dot_rmd = tree_to_graphviz(result['rmd'])
+        st.graphviz_chart(dot_rmd.source)
+
+        # Show RMD steps in a nicer format
+        st.markdown("**RMD Derivation Steps:**")
+        rmd_steps = get_rmd_steps(result['rmd'])
+        for i, step in enumerate(rmd_steps):
+            st.code(f"Step {i+1}: {step}")
+        
+        # Show metrics
+        st.markdown("---")
+        st.subheader("Parse Tree Metrics")
+        metrics = metrics_analyzer.calculate_metrics(result['lmd'], parsing_time)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Tree Depth", metrics['tree_depth'])
+            st.metric("Total Nodes", metrics['total_nodes'])
+            st.metric("Operations", metrics['operations'])
+        with col2:
+            st.metric("Variables", metrics['variables'])
+            st.metric("Numbers", metrics['numbers'])
+            st.metric("Parsing Time", f"{metrics['parsing_time_ms']}ms")
+        
+        # Show expression evaluation
+        st.markdown("---")
+        st.subheader("Expression Evaluation")
+        try:
+            value = evaluator.evaluate(result['lmd'])
+            st.success(f"Result: {value}")
+        except ValueError as e:
+            st.warning(f"Evaluation error: {str(e)}")
+        
+        # Show generated code
+        st.markdown("---")
+        st.subheader("Generated Code")
+        if target_lang == "Python":
+            generated = CodeGenerator.generate_python(result['lmd'])
+        elif target_lang == "JavaScript":
+            generated = CodeGenerator.generate_javascript(result['lmd'])
+        else:  # C++
+            generated = CodeGenerator.generate_cpp(result['lmd'])
+        
+        st.code(generated, language=target_lang.lower())
+
+# Helper function to generate derivation steps
+def get_lmd_steps(tree):
+    steps = []
+    expr = str(tree)
+    current = "start"
+    tokens = expr.split()
+    for i in range(len(tokens)):
+        current += f" ⟹ {' '.join(tokens[:i+1])}"
+        steps.append(current)
+    return steps
+
+def get_rmd_steps(tree):
+    steps = []
+    expr = str(tree)
+    current = "start"
+    tokens = expr.split()
+    for i in range(len(tokens)-1, -1, -1):
+        current += f" ⟹ {' '.join(tokens[i:])}"
+        steps.append(current)
+    return steps
